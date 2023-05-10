@@ -71,9 +71,16 @@ func main() {
 		},
 		{
 			Name:   "hello:stream",
-			Usage:  "Say hello in real time",
+			Usage:  "Say hello incrementally",
 			Before: initClient,
 			Action: getStreamHellos,
+			Flags:  []cli.Flag{},
+		},
+		{
+			Name:   "hello:chat",
+			Usage:  "Say hello in real-time",
+			Before: initClient,
+			Action: getChatHellos,
 			Flags:  []cli.Flag{},
 		},
 	}
@@ -121,7 +128,6 @@ func getHello(c *cli.Context) (err error) {
 
 	var msg string
 	if msg, err = client.SayHello(ctx, lang); err != nil {
-		fmt.Println("Error:", err)
 		return cli.Exit(err, 1)
 	}
 
@@ -136,7 +142,6 @@ func getManyHellos(c *cli.Context) (err error) {
 
 	var msgs []string
 	if msgs, err = client.SayServerStream(ctx, langs); err != nil {
-		fmt.Println("Error:", err)
 		return cli.Exit(err, 1)
 	}
 
@@ -146,7 +151,7 @@ func getManyHellos(c *cli.Context) (err error) {
 	return nil
 }
 
-// Stream hello messages in real time
+// Stream hello messages to the server and retrieve them all at once
 func getStreamHellos(c *cli.Context) (err error) {
 	ctx := context.Background()
 
@@ -158,7 +163,8 @@ func getStreamHellos(c *cli.Context) (err error) {
 		reader := bufio.NewReader(os.Stdin)
 		for {
 			fmt.Print("Enter a language code: ")
-			lang, _ := reader.ReadString('\n')
+			input, _ := reader.ReadString('\n')
+			lang := strings.TrimSpace(input)
 			if lang == "" {
 				break
 			}
@@ -169,12 +175,52 @@ func getStreamHellos(c *cli.Context) (err error) {
 
 	var msgs []string
 	if msgs, err = client.SayClientStream(ctx, langs); err != nil {
-		fmt.Println("Error:", err)
 		return cli.Exit(err, 1)
 	}
 
 	for _, msg := range msgs {
 		fmt.Println(msg)
+	}
+
+	wg.Wait()
+	return nil
+}
+
+// Stream hello messages in real time
+func getChatHellos(c *cli.Context) (err error) {
+	var wg sync.WaitGroup
+	ctx := context.Background()
+
+	// Go routine to send language codes to the server
+	langs := make(chan string)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		reader := bufio.NewReader(os.Stdin)
+		for {
+			input, _ := reader.ReadString('\n')
+			lang := strings.TrimSpace(input)
+			if lang == "" {
+				break
+			}
+			langs <- strings.TrimSpace(lang)
+		}
+		close(langs)
+	}()
+
+	// Go routine to receive messages from the server
+	messages := make(chan string)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for msg := range messages {
+			fmt.Println(msg)
+		}
+	}()
+
+	fmt.Println("Enter some language codes")
+	if err = client.SayBidirectional(ctx, langs, messages); err != nil {
+		return cli.Exit(err, 1)
 	}
 
 	wg.Wait()

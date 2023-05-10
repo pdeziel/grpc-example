@@ -169,9 +169,30 @@ func (s *clientTestSuite) TestSayBidirectional() {
 		}
 	}
 
-	// Make a bidirectional stream request
-	langs := []string{"en", "fr", "es"}
-	greetings, err := s.client.SayBidirectional(context.Background(), langs)
+	// Setup the send stream
+	langs := make(chan string, len(messages))
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for _, message := range messages {
+			langs <- message
+		}
+		close(langs)
+	}()
+
+	// Setup the receive stream
+	responses := make(chan string, len(messages))
+	greetings := make([]string, 0, len(messages))
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for msg := range responses {
+			greetings = append(greetings, msg)
+		}
+	}()
+
+	err := s.client.SayBidirectional(context.Background(), langs, responses)
 	require.NoError(err, "could not call the service")
 	require.Equal(messages, greetings)
 }

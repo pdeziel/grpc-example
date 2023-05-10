@@ -111,17 +111,17 @@ func (c *Client) SayServerStream(ctx context.Context, langCodes []string) (greet
 	return greetings, nil
 }
 
-func (c *Client) SayBidirectional(ctx context.Context, langCodes []string) (greetings []string, err error) {
+func (c *Client) SayBidirectional(ctx context.Context, langs <-chan string, greetings chan<- string) (err error) {
 	var stream pb.Hello_SayBidirectionalClient
 	if stream, err = c.api.SayBidirectional(ctx); err != nil {
-		return nil, err
+		return err
 	}
 
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		for _, langCode := range langCodes {
+		for langCode := range langs {
 			req := &pb.HelloRequest{
 				IsoLanguageCode: langCode,
 			}
@@ -140,14 +140,14 @@ func (c *Client) SayBidirectional(ctx context.Context, langCodes []string) (gree
 			if errors.Is(err, io.EOF) {
 				break
 			}
-			return nil, err
+			return err
 		}
 
-		greetings = append(greetings, rep.Greeting)
+		greetings <- rep.Greeting
 	}
 
-	// Wait for the sender goroutine to receive all the responses
+	// Wait for the sender goroutine to send all the responses
 	wg.Wait()
 
-	return greetings, nil
+	return nil
 }

@@ -24,22 +24,21 @@ message HelloRequest {
     string iso_language_code = 1;
 }
 
-// Using the repeated keyword allows for "lists" of messages
-message HelloManyRequest {
-    repeated string iso_language_codes = 1;
-}
-
 // A message sent from the server to the client
 // For backwards compatibility, don't change the numbering of the fields
 message HelloReply {
     string greeting = 1;
     string iso_language_code = 2;
 
-    // Reserve 3-15 for future use
-    reserved 3 to 15;
+    // Fields 3-15 are reserved for future use
 
     // Message timestamps
     string created_at = 16;
+}
+
+// Using the repeated keyword allows for "lists" of messages
+message HelloManyRequest {
+    repeated string iso_language_codes = 1;
 }
 
 message HelloManyReply {
